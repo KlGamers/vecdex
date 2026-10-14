@@ -8,7 +8,7 @@
 #include <queue>
 #include <stdexcept>
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && (defined(__aarch64__) || defined(_M_ARM64))
 #include <arm_neon.h>
 #elif defined(__AVX2__) && defined(__FMA__)
 #include <immintrin.h>
@@ -21,7 +21,7 @@ namespace {
 constexpr std::uint32_t kMagic = 0x58444356;
 constexpr std::uint32_t kVersion = 1;
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && (defined(__aarch64__) || defined(_M_ARM64))
 
 float l2(const float* a, const float* b, std::size_t n) {
   float32x4_t s0 = vdupq_n_f32(0.0f), s1 = s0, s2 = s0, s3 = s0;

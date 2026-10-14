@@ -27,25 +27,28 @@ vecinos exactos. Mismos parámetros para las dos librerías (`M=16`,
 
 | ef | recall vecdex | QPS vecdex | recall hnswlib | QPS hnswlib | razón de QPS |
 |---|---|---|---|---|---|
-| 10 | 0.9328 | 4,461 | 0.9295 | 4,327 | 1.03 |
-| 20 | 0.9792 | 3,301 | 0.9775 | 3,298 | 1.00 |
-| 40 | 0.9945 | 1,994 | 0.9935 | 2,084 | 0.96 |
-| 80 | 0.9983 | 1,439 | 0.9980 | 1,433 | 1.00 |
-| 160 | 0.9993 | 912 | 0.9993 | 923 | 0.99 |
-| 320 | 0.9997 | 543 | 0.9997 | 592 | 0.92 |
+| 10 | 0.9328 | 10,412 | 0.9295 | 4,534 | 2.30 |
+| 20 | 0.9792 | 6,043 | 0.9775 | 3,295 | 1.83 |
+| 40 | 0.9945 | 4,293 | 0.9935 | 2,160 | 1.99 |
+| 80 | 0.9983 | 2,618 | 0.9980 | 1,428 | 1.83 |
+| 160 | 0.9993 | 1,623 | 0.9993 | 915 | 1.77 |
+| 320 | 0.9997 | 1,003 | 0.9997 | 585 | 1.72 |
 
-- Construcción del índice: vecdex 82.7 s, hnswlib 82.1 s.
+- Construcción del índice: vecdex 37.4 s, hnswlib 82.7 s.
 - Búsqueda exacta con NumPy sobre los mismos datos: 151 consultas por segundo.
-- vecdex con `ef=80` usando todos los núcleos: 9,328 consultas por segundo.
+- vecdex con `ef=80` usando todos los núcleos: 12,091 consultas por segundo.
 
 Qué dicen los números:
 
-- vecdex obtiene el mismo recall que hnswlib y entre 0.92 y 1.03 veces su
-  velocidad en esta máquina.
-- Con `ef=80` responde 9.5 veces más rápido que la búsqueda exacta y devuelve
+- Con el mismo grafo y el mismo recall que hnswlib, vecdex responde entre 1.7
+  y 2.3 veces más consultas por segundo y construye el índice 2.2 veces más
+  rápido en esta máquina. La diferencia viene de las funciones de distancia
+  escritas con NEON y de la precarga de los vectores vecinos.
+- Con `ef=80` responde 17 veces más rápido que la búsqueda exacta y devuelve
   el 99.8% de los vecinos correctos.
-- La comparación es en ARM. hnswlib trae rutas SIMD escritas a mano solo para
-  x86, así que en un procesador Intel o AMD debería sacar ventaja. No lo medí.
+- La comparación es en ARM. En x86, hnswlib usa sus propias rutas AVX y vecdex
+  necesita compilarse con `-DVECDEX_AVX2=ON` para usar las suyas. No lo medí,
+  así que no afirmo nada para Intel o AMD.
 
 Para reproducirlo:
 
@@ -106,8 +109,15 @@ cmake -S . -B build && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
+En x86-64 agrega `-DVECDEX_AVX2=ON` para usar los kernels AVX2.
+
 ## Cómo está hecho
 
+- **Distancias con SIMD.** L2 y producto punto usan NEON en ARM y AVX2 con
+  FMA en x86, con cuatro acumuladores para aprovechar el paralelismo del
+  procesador. Sin esas extensiones cae a una versión escalar.
+- **Precarga.** Mientras calcula la distancia a un vecino, pide a la caché el
+  vector del siguiente.
 - **Memoria contigua.** Los vectores viven en un solo arreglo y los enlaces de
   la capa 0 en otro, con tamaño fijo por nodo. Recorrer vecinos no persigue
   punteros.

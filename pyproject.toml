@@ -1,0 +1,23 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "vecdex"
+version = "0.1.0"
+description = "HNSW approximate nearest neighbour index in C++17 with Python bindings"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+bench = ["hnswlib>=0.8", "h5py>=3.10"]
+
+[tool.scikit-build]
+wheel.packages = ["python/vecdex"]
+cmake.build-type = "Release"
+
+[tool.pytest.ini_options]
+testpaths = ["pytests"]

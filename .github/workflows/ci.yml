@@ -17,6 +17,15 @@ jobs:
       - run: cmake --build build -j
       - run: ctest --test-dir build --output-on-failure
 
+  avx2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: grep -q avx2 /proc/cpuinfo
+      - run: cmake -S . -B build -DVECDEX_AVX2=ON -DVECDEX_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - run: cmake --build build -j
+      - run: ctest --test-dir build --output-on-failure
+
   python:
     runs-on: ubuntu-latest
     steps:

@@ -8,6 +8,12 @@
 #include <queue>
 #include <stdexcept>
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#include <arm_neon.h>
+#elif defined(__AVX2__) && defined(__FMA__)
+#include <immintrin.h>
+#endif
+
 namespace vecdex {
 
 namespace {
@@ -15,9 +21,27 @@ namespace {
 constexpr std::uint32_t kMagic = 0x58444356;
 constexpr std::uint32_t kVersion = 1;
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+
 float l2(const float* a, const float* b, std::size_t n) {
-  float acc = 0.0f;
-  for (std::size_t i = 0; i < n; ++i) {
+  float32x4_t s0 = vdupq_n_f32(0.0f), s1 = s0, s2 = s0, s3 = s0;
+  std::size_t i = 0;
+  for (; i + 16 <= n; i += 16) {
+    const float32x4_t d0 = vsubq_f32(vld1q_f32(a + i), vld1q_f32(b + i));
+    const float32x4_t d1 = vsubq_f32(vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
+    const float32x4_t d2 = vsubq_f32(vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
+    const float32x4_t d3 = vsubq_f32(vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+    s0 = vfmaq_f32(s0, d0, d0);
+    s1 = vfmaq_f32(s1, d1, d1);
+    s2 = vfmaq_f32(s2, d2, d2);
+    s3 = vfmaq_f32(s3, d3, d3);
+  }
+  for (; i + 4 <= n; i += 4) {
+    const float32x4_t d = vsubq_f32(vld1q_f32(a + i), vld1q_f32(b + i));
+    s0 = vfmaq_f32(s0, d, d);
+  }
+  float acc = vaddvq_f32(vaddq_f32(vaddq_f32(s0, s1), vaddq_f32(s2, s3)));
+  for (; i < n; ++i) {
     const float d = a[i] - b[i];
     acc += d * d;
   }
@@ -25,10 +49,101 @@ float l2(const float* a, const float* b, std::size_t n) {
 }
 
 float dot(const float* a, const float* b, std::size_t n) {
-  float acc = 0.0f;
-  for (std::size_t i = 0; i < n; ++i) acc += a[i] * b[i];
+  float32x4_t s0 = vdupq_n_f32(0.0f), s1 = s0, s2 = s0, s3 = s0;
+  std::size_t i = 0;
+  for (; i + 16 <= n; i += 16) {
+    s0 = vfmaq_f32(s0, vld1q_f32(a + i), vld1q_f32(b + i));
+    s1 = vfmaq_f32(s1, vld1q_f32(a + i + 4), vld1q_f32(b + i + 4));
+    s2 = vfmaq_f32(s2, vld1q_f32(a + i + 8), vld1q_f32(b + i + 8));
+    s3 = vfmaq_f32(s3, vld1q_f32(a + i + 12), vld1q_f32(b + i + 12));
+  }
+  for (; i + 4 <= n; i += 4) s0 = vfmaq_f32(s0, vld1q_f32(a + i), vld1q_f32(b + i));
+  float acc = vaddvq_f32(vaddq_f32(vaddq_f32(s0, s1), vaddq_f32(s2, s3)));
+  for (; i < n; ++i) acc += a[i] * b[i];
   return acc;
 }
+
+#elif defined(__AVX2__) && defined(__FMA__)
+
+float hsum(__m256 v) {
+  const __m128 lo = _mm256_castps256_ps128(v);
+  const __m128 hi = _mm256_extractf128_ps(v, 1);
+  __m128 s = _mm_add_ps(lo, hi);
+  s = _mm_add_ps(s, _mm_movehl_ps(s, s));
+  s = _mm_add_ss(s, _mm_shuffle_ps(s, s, 1));
+  return _mm_cvtss_f32(s);
+}
+
+float l2(const float* a, const float* b, std::size_t n) {
+  __m256 s0 = _mm256_setzero_ps(), s1 = s0;
+  std::size_t i = 0;
+  for (; i + 16 <= n; i += 16) {
+    const __m256 d0 = _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i));
+    const __m256 d1 = _mm256_sub_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8));
+    s0 = _mm256_fmadd_ps(d0, d0, s0);
+    s1 = _mm256_fmadd_ps(d1, d1, s1);
+  }
+  for (; i + 8 <= n; i += 8) {
+    const __m256 d = _mm256_sub_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i));
+    s0 = _mm256_fmadd_ps(d, d, s0);
+  }
+  float acc = hsum(_mm256_add_ps(s0, s1));
+  for (; i < n; ++i) {
+    const float d = a[i] - b[i];
+    acc += d * d;
+  }
+  return acc;
+}
+
+float dot(const float* a, const float* b, std::size_t n) {
+  __m256 s0 = _mm256_setzero_ps(), s1 = s0;
+  std::size_t i = 0;
+  for (; i + 16 <= n; i += 16) {
+    s0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), s0);
+    s1 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + 8), _mm256_loadu_ps(b + i + 8), s1);
+  }
+  for (; i + 8 <= n; i += 8) s0 = _mm256_fmadd_ps(_mm256_loadu_ps(a + i), _mm256_loadu_ps(b + i), s0);
+  float acc = hsum(_mm256_add_ps(s0, s1));
+  for (; i < n; ++i) acc += a[i] * b[i];
+  return acc;
+}
+
+#else
+
+float l2(const float* a, const float* b, std::size_t n) {
+  float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f, s3 = 0.0f;
+  std::size_t i = 0;
+  for (; i + 4 <= n; i += 4) {
+    const float d0 = a[i] - b[i], d1 = a[i + 1] - b[i + 1];
+    const float d2 = a[i + 2] - b[i + 2], d3 = a[i + 3] - b[i + 3];
+    s0 += d0 * d0;
+    s1 += d1 * d1;
+    s2 += d2 * d2;
+    s3 += d3 * d3;
+  }
+  float acc = (s0 + s1) + (s2 + s3);
+  for (; i < n; ++i) {
+    const float d = a[i] - b[i];
+    acc += d * d;
+  }
+  return acc;
+}
+
+float dot(const float* a, const float* b, std::size_t n) {
+  float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f, s3 = 0.0f;
+  std::size_t i = 0;
+  for (; i + 4 <= n; i += 4) {
+    s0 += a[i] * b[i];
+    s1 += a[i + 1] * b[i + 1];
+    s2 += a[i + 2] * b[i + 2];
+    s3 += a[i + 3] * b[i + 3];
+  }
+  float acc = (s0 + s1) + (s2 + s3);
+  for (; i < n; ++i) acc += a[i] * b[i];
+  return acc;
+}
+
+#endif
 
 struct Visited {
   std::vector<std::uint32_t> tag;
@@ -159,8 +274,10 @@ std::vector<Index::Cand> Index::search_layer(const float* qry, Node ep, std::siz
     open.pop();
     const Node* lk = links(cur.second, lvl);
     const Node cnt = lk[0];
+    if (cnt > 0) __builtin_prefetch(vec(lk[1]));
     for (Node i = 1; i <= cnt; ++i) {
       const Node nb = lk[i];
+      if (i < cnt) __builtin_prefetch(vec(lk[i + 1]));
       if (seen.test_set(nb)) continue;
       const float d = dist(qry, vec(nb));
       if (best.size() < ef || d < best.top().first) {

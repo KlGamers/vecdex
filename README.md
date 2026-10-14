@@ -40,7 +40,7 @@ vecinos exactos. Mismos parámetros para las dos librerías (`M=16`,
 
 Qué dicen los números:
 
-- Con el mismo grafo y el mismo recall que hnswlib, vecdex responde entre 1.7
+- Con los mismos parámetros y el mismo recall que hnswlib, vecdex responde entre 1.7
   y 2.3 veces más consultas por segundo y construye el índice 2.2 veces más
   rápido en esta máquina. La diferencia viene de las funciones de distancia
   escritas con NEON y de la precarga de los vectores vecinos.

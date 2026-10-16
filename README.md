@@ -149,6 +149,14 @@ En x86-64 agrega `-DVECDEX_AVX2=ON` para usar los kernels AVX2.
 - Hasta 2^32 vectores por índice.
 - El archivo guardado usa el orden de bytes de la máquina que lo escribió.
 
+## Ecosistema
+
+| Repo | Papel |
+|---|---|
+| [hallar](https://github.com/KlGamers/hallar) | Búsqueda semántica sin internet en el teléfono, construida sobre vecdex |
+| [trama](https://github.com/KlGamers/trama) | Sincronización local-first con CRDTs |
+| [rumbo](https://github.com/KlGamers/rumbo) | Router de intenciones con embeddings |
+
 ## Licencia
 
 MIT

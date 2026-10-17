@@ -156,6 +156,7 @@ En x86-64 agrega `-DVECDEX_AVX2=ON` para usar los kernels AVX2.
 | [hallar](https://github.com/KlGamers/hallar) | Búsqueda semántica sin internet en el teléfono, construida sobre vecdex |
 | [trama](https://github.com/KlGamers/trama) | Sincronización local-first con CRDTs |
 | [rumbo](https://github.com/KlGamers/rumbo) | Router de intenciones con embeddings |
+| [verbo](https://github.com/KlGamers/verbo) | Inferencia de LLM en C++ con los mismos kernels NEON y AVX2 |
 
 ## Licencia
 
